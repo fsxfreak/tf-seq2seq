@@ -61,6 +61,8 @@ tf.app.flags.DEFINE_string('model_name', 'translate.ckpt', 'File name used for m
 tf.app.flags.DEFINE_boolean('shuffle_each_epoch', True, 'Shuffle training dataset for each epoch')
 tf.app.flags.DEFINE_boolean('sort_by_length', True, 'Sort pre-fetched minibatches by their target sequence lengths')
 tf.app.flags.DEFINE_boolean('use_fp16', False, 'Use half precision float16 instead of float32 as dtype')
+tf.app.flags.DEFINE_boolean('average_loss', True, 
+  'Normalize loss scores to length of sequence')
 
 # Runtime parameters
 tf.app.flags.DEFINE_boolean('allow_soft_placement', True, 'Allow device soft placement')

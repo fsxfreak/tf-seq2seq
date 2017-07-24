@@ -223,11 +223,12 @@ class Seq2SeqModel(object):
 
                 # Computes per word average cross-entropy over a batch
                 # Internally calls 'nn_ops.sparse_softmax_cross_entropy_with_logits' by default
-                self.loss = seq2seq.sequence_loss(logits=self.decoder_logits_train, 
-                                                  targets=self.decoder_targets_train,
-                                                  weights=masks,
-                                                  average_across_timesteps=True,
-                                                  average_across_batch=True,)
+                self.loss = seq2seq.sequence_loss(
+                    logits=self.decoder_logits_train, 
+                    targets=self.decoder_targets_train,
+                    weights=masks,
+                    average_across_timesteps=self.config['average_loss'],
+                    average_across_batch=False,)
                 # Training summary for the current batch_loss
                 tf.summary.scalar('loss', self.loss)
 
@@ -496,10 +497,18 @@ class Seq2SeqModel(object):
         # Input feeds for dropout
         input_feed[self.keep_prob_placeholder.name] = 1.0
 
-        output_feed = [self.loss,	# Loss for current batch
-                       self.summary_op]	# Training summary
+        if self.config['average_loss']:
+          output_feed = [self.loss,	# Loss for current batch
+                         self.summary_op]	# Training summary
+        else:
+          output_feed = [ self.loss ]
+
         outputs = sess.run(output_feed, input_feed)
-        return outputs[0], outputs[1]	# loss
+  
+        if self.config['average_loss']:
+          return outputs[0], outputs[1]
+        else:
+          return outputs[0] # dunno why, but summary doesn't work with non avg
 
 
     def predict(self, sess, encoder_inputs, encoder_inputs_length):

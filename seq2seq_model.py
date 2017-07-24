@@ -228,7 +228,7 @@ class Seq2SeqModel(object):
                     targets=self.decoder_targets_train,
                     weights=masks,
                     average_across_timesteps=self.config['average_loss'],
-                    average_across_batch=False,)
+                    average_across_batch=self.config['average_loss'],)
                 # Training summary for the current batch_loss
                 tf.summary.scalar('loss', self.loss)
 

@@ -20,10 +20,12 @@ from data.data_utils import prepare_train_batch
 
 from seq2seq_model import Seq2SeqModel
 
-tf.app.flags.DEFINE_string('source_test_data', 'data/newstest2012.bpe.de', 
-  'Path to source test data')
-tf.app.flags.DEFINE_string('target_test_data', 'data/newstest2012.bpe.fr', 
-  'Path to target validation data')
+tf.app.flags.DEFINE_string('hyp_data', 'in.hyp',
+  'Path to hypotheses for rescoring')
+tf.app.flags.DEFINE_string('workdir', '/tmp',
+  'Temporary directory to do file work')
+tf.app.flags.DEFINE_string('scores', 'out.scores',
+  'Path to output scores file')
 tf.app.flags.DEFINE_string('source_vocabulary', 'data/europarl-v7.1.4M.de.json', 
   'Path to source vocabulary')
 tf.app.flags.DEFINE_string('target_vocabulary', 'data/europarl-v7.1.4M.fr.json', 
@@ -93,10 +95,29 @@ def load_model(session, FLAGS):
   return model
 
 def main():
-  print 'Force decoding: ', FLAGS.source_test_data
+  print 'Force decoding: ', FLAGS.hyp_data
   print 'Loading test data..'
-  test_set = BiTextIterator(source=FLAGS.source_test_data,
-                            target=FLAGS.target_test_data,
+  hyp = FLAGS.hyp_data
+  tmp = FLAGS.workdir
+  print 'Using temp directory', tmp
+  hyp_src_fname = os.path.join(tmp, 
+      '%s.src.%d' % (os.path.basename(hyp), int(time.time())))
+  hyp_trg_fname = os.path.join(tmp, 
+      '%s.trg.%d' % (os.path.basename(hyp), int(time.time())))
+  print 'hyp tmp:', hyp_src_fname, hyp_trg_fname
+
+  hyp_src = open(hyp_src_fname, 'w')
+  hyp_trg = open(hyp_trg_fname, 'w')
+  with open(hyp, 'r') as f:
+    for line in f:
+      toks = line.strip().split('\t')
+      hyp_src.write('%s\n' % toks[0].strip())
+      hyp_trg.write('%s\n' % toks[1].strip())
+  hyp_src.close()
+  hyp_trg.close()
+
+  test_set = BiTextIterator(source=hyp_src_fname,
+                            target=hyp_trg_fname,
                             source_dict=FLAGS.source_vocabulary,
                             target_dict=FLAGS.target_vocabulary,
                             batch_size=1,
@@ -105,13 +126,15 @@ def main():
                             n_words_target=FLAGS.num_decoder_symbols,
                             sort_by_length=False)
   print 'Done loading test data.'
+
+  losses = []
   with tf.Session(config=tf.ConfigProto(
     allow_soft_placement=FLAGS.allow_soft_placement, 
     log_device_placement=FLAGS.log_device_placement, 
     gpu_options=tf.GPUOptions(allow_growth=True))) as sess:
 
     model = load_model(sess, FLAGS)
-    index = 1
+    index = 0 
     for source_seq, target_seq in test_set:
       source, source_len, target, target_len = \
           prepare_train_batch(source_seq, target_seq)
@@ -120,8 +143,18 @@ def main():
           encoder_inputs=source, encoder_inputs_length=source_len,
           decoder_inputs=target, decoder_inputs_length=target_len)
 
-      print index, np.sum(step_loss)
+      if index % 5000 == 0:
+        print 'Rescoring hypothesis: %d' % index
       index += 1
+
+      loss = np.sum(step_loss)
+      losses.append(str(loss)) # convert to string for output to text file
+
+  print 'Got %d scores.' % len(losses)
+  with open(FLAGS.scores, 'w') as f:
+    f.write('\n'.join(losses))
+    f.write('\n')
+  print 'Done, saved to %s.' % FLAGS.scores
 
 if __name__ == '__main__':
   main()
